@@ -1,4 +1,4 @@
-# LogicScanner_F412
+# LogicAnalyzer_F412
 simple logic analyzer with Nucleo-F412ZG
 
 # System Requirements
