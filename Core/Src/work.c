@@ -6,11 +6,17 @@
 #include "main.h"
 #include "FreeRTOS.h"
 
+#define MAX_SAMPLE_DATA_COUNT 200000
+
 extern TIM_HandleTypeDef htim2;
 extern uint32_t counter;
 extern UART_HandleTypeDef huart3;
 extern osThreadId_t read_signal_id;
-uint8_t test[200000] = {0};
+extern osMessageQueueId_t messageQueueId;
+uint8_t test[MAX_SAMPLE_DATA_COUNT] = {0};
+typedef struct {
+    uint32_t data;
+} Message_Obj_t;
 
 /**
  * @brief delay with timer counter
@@ -19,7 +25,7 @@ uint8_t test[200000] = {0};
 void delay_us(uint32_t us)
 {
   uint32_t t1 = __HAL_TIM_GET_COUNTER(&htim2);
-  while (__HAL_TIM_GET_COUNTER(&htim2) - t1 < 1);
+  while (__HAL_TIM_GET_COUNTER(&htim2) - t1 < us);
 }
 
 /**
@@ -30,21 +36,31 @@ void ReadSignalThread(void *param)
 {
   for (;;) {
     osThreadFlagsWait(1U, osFlagsWaitAny, osWaitForever);
+    Message_Obj_t msg;
+    osMessageQueueGet(messageQueueId, &msg, 0, 10);
+    uint32_t interval = msg.data;
+    osMessageQueueGet(messageQueueId, &msg, 0, 10);
+    uint32_t sample_data_count = msg.data;
+    if (sample_data_count > MAX_SAMPLE_DATA_COUNT) sample_data_count = MAX_SAMPLE_DATA_COUNT;
+    uint8_t test_msg[50];
+    memset(test_msg, 0, 50);
+    sprintf(test_msg, "%d , %d\n", interval, sample_data_count);
+    HAL_UART_Transmit(&huart3, test_msg, 50, 1000);
     counter = 0;
     __HAL_TIM_SET_COUNTER(&htim2, 0);
     HAL_TIM_Base_Start(&htim2);
     uint32_t ms_t1 = osKernelGetTickCount();
-    while (counter < 200000) {
-      delay_us(1);
+    while (counter < sample_data_count) {
+      delay_us(interval);
       test[counter] = *(__IO uint8_t *) (0x60000000);
       counter++;
     }
     uint32_t ms_t2 = osKernelGetTickCount();
     HAL_TIM_Base_Stop(&htim2);
-    uint8_t temp[20];
-    memset(temp, 0, 20);
-    sprintf(temp, "%d %d\n", ms_t2 - ms_t1, test[100]);
-    HAL_UART_Transmit(&huart3, temp, 20, 1000);
+    uint8_t temp_str[20];
+    memset(temp_str, 0, 20);
+    sprintf(temp_str, "%d %d\n", ms_t2 - ms_t1, test[100]);
+    HAL_UART_Transmit(&huart3, temp_str, 20, 1000);
     osThreadFlagsClear(1U);
   }
 }
@@ -56,17 +72,24 @@ void ReadSignalThread(void *param)
 void WaitCommandThread(void *param)
 {
   for (;;) {
-    uint8_t receive[12] = {0};
-    memset(receive, 0, 12);
-    uint8_t state = HAL_UART_Receive(&huart3, receive, 12, 1000);
+    uint8_t receive[13] = {0};
+    memset(receive, 0, 13);
+    uint8_t state = HAL_UART_Receive(&huart3, receive, 13, 1000);
     if (state == HAL_OK) {
       osDelay(1);
-      char *token = strtok(receive, (const char *) " ");
+      uint8_t token[6] = {0};
+      memcpy(token, receive, 5);
       if (strcmp(token, "start") == 0) {
         HAL_UART_Transmit(&huart3, token, 6, 1000);
-        token = strtok(NULL, (const char *) " ");
-        if (token != NULL)
-          HAL_UART_Transmit(&huart3, token, strlen(token) + 1, 1000);
+        uint8_t counter = 0;
+        uint8_t start_index = 5;
+        while (counter < 2) {
+          Message_Obj_t msg;
+          memcpy(&msg.data, receive + start_index, 4);
+          osMessageQueuePut(messageQueueId, &msg, 0, 10);
+          start_index += 4;
+          counter++;
+        }
         osThreadFlagsSet(read_signal_id, 1U);
       }
     }

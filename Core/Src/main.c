@@ -59,6 +59,7 @@ uint8_t usb_receive_flag = 0;
 osThreadId_t read_signal_id;
 //extern USBD_HandleTypeDef hUsbDeviceFS;
 uint32_t counter = 0;
+osMessageQueueId_t messageQueueId;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -129,6 +130,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  messageQueueId = osMessageQueueNew(10,4,NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
