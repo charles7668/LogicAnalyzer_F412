@@ -29,3 +29,8 @@ the second 4 bytes data is number of sample (max is 200k)
 
 data order is reverse per byte  
 ex : 1000 =  03E8 , send data will be  E8 03 00 00
+
+## Return data
+return data start with interval value + " " + sample value + "\n",all after "\n" is data  
+
+8 channel data store in byte , MSB is channel 8 , LSB is channel 1
