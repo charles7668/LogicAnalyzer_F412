@@ -42,10 +42,6 @@ void ReadSignalThread(void *param)
     osMessageQueueGet(messageQueueId, &msg, 0, 10);
     uint32_t sample_data_count = msg.data;
     if (sample_data_count > MAX_SAMPLE_DATA_COUNT) sample_data_count = MAX_SAMPLE_DATA_COUNT;
-    uint8_t test_msg[50];
-    memset(test_msg, 0, 50);
-    sprintf(test_msg, "%d , %d\n", interval, sample_data_count);
-    HAL_UART_Transmit(&huart3, test_msg, 50, 1000);
     counter = 0;
     __HAL_TIM_SET_COUNTER(&htim2, 0);
     HAL_TIM_Base_Start(&htim2);
@@ -59,8 +55,9 @@ void ReadSignalThread(void *param)
     HAL_TIM_Base_Stop(&htim2);
     uint8_t temp_str[20];
     memset(temp_str, 0, 20);
-    sprintf(temp_str, "%d %d\n", ms_t2 - ms_t1, test[100]);
-    HAL_UART_Transmit(&huart3, temp_str, 20, 1000);
+    sprintf(temp_str, "%d %d\n", interval, ms_t2 - ms_t1);
+    HAL_UART_Transmit(&huart3, temp_str, strlen(temp_str), 1000);
+    HAL_UART_Transmit(&huart3, test, sample_data_count, sample_data_count * 10);
     osThreadFlagsClear(1U);
   }
 }
@@ -71,6 +68,7 @@ void ReadSignalThread(void *param)
  */
 void WaitCommandThread(void *param)
 {
+  HAL_GPIO_WritePin(TEST_SIGNAL_GPIO_Port, TEST_SIGNAL_Pin, GPIO_PIN_SET);
   for (;;) {
     uint8_t receive[13] = {0};
     memset(receive, 0, 13);
@@ -80,7 +78,6 @@ void WaitCommandThread(void *param)
       uint8_t token[6] = {0};
       memcpy(token, receive, 5);
       if (strcmp(token, "start") == 0) {
-        HAL_UART_Transmit(&huart3, token, 6, 1000);
         uint8_t counter = 0;
         uint8_t start_index = 5;
         while (counter < 2) {
